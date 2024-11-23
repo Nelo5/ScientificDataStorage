@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: docker
       POSTGRES_DB: exampledb
     volumes:
-      - ./db/data:/var/lib/postgresql/data
+      - /app/db/data:/var/lib/postgresql/data
       - db-photo-upload-service:/var/lib/postgresql/database
   adminer:
     image: adminer
@@ -26,7 +26,7 @@ services:
       - 9000:9000
       - 9001:9001
     volumes:
-      - ./minio/data:/data
+      - /app/minio/data:/data
     environment:
       - MINIO_ROOT_USER=ROOTNAME
       - MINIO_ROOT_PASSWORD=PASSWORD
