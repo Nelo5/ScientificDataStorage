@@ -1,0 +1,7 @@
+boto3
+psycopg2-binary
+uvicorn
+fastapi[standard]
+typing
+pydantic
+minio

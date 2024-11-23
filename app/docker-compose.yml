@@ -1,0 +1,47 @@
+services:
+  database:
+    image: postgres
+    ports:
+      - 5432:5432
+    restart: always
+    environment:
+      POSTGRES_USER: docker
+      POSTGRES_PASSWORD: docker
+      POSTGRES_DB: exampledb
+    volumes:
+      - ./db/data:/var/lib/postgresql/data
+      - db-photo-upload-service:/var/lib/postgresql/database
+  adminer:
+    image: adminer
+    restart: always
+    depends_on:
+      - database
+    ports:
+      - 8081:8080
+
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    ports:
+      - 9000:9000
+      - 9001:9001
+    volumes:
+      - ./minio/data:/data
+    environment:
+      - MINIO_ROOT_USER=ROOTNAME
+      - MINIO_ROOT_PASSWORD=PASSWORD
+    restart: always
+    command: server --console-address ":9001" /data      
+    
+  backend:
+    build: ./backend
+    ports:
+      - 8000:80
+    depends_on:
+      - database
+      - minio
+
+
+
+volumes:
+  db-photo-upload-service:
