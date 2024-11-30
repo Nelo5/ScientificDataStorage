@@ -9,8 +9,7 @@ services:
       POSTGRES_PASSWORD: docker
       POSTGRES_DB: exampledb
     volumes:
-      - ./app/db/data:/var/lib/postgresql/data
-      - db-photo-upload-service:/var/lib/postgresql/database
+      - /app/db/data:/var/lib/postgresql/data
   adminer:
     image: adminer
     restart: always
@@ -26,14 +25,14 @@ services:
       - 9000:9000
       - 9001:9001
     volumes:
-      - ./app/minio/data:/data
+      - /app/minio/data:/data
     environment:
       - MINIO_ROOT_USER=ROOTNAME
       - MINIO_ROOT_PASSWORD=PASSWORD
     restart: always
     command: server --console-address ":9001" /data      
 
-  frtontend:
+  frontend:
     build: ./app/frontend
     ports:
       - "3000:3000"
@@ -41,6 +40,7 @@ services:
     tty: true
     depends_on:
       - backend
+      - jupyter
 
   jupyter:
     build: ./app/jupyter
@@ -61,8 +61,3 @@ services:
       - database
       - minio
 
-
-
-
-volumes:
-  db-photo-upload-service:
