@@ -22,7 +22,7 @@ export default function App() {
   const [uploadSuccessful, setUploadSuccessful] = useState(false);
   const [showSpinner, setShowSpinner] = useState(false);
   const [fileAuthor, setFileAuthor] = useState("");
-  const fileInputRef = useRef(null); // Reference to hidden file input
+  const fileInputRef = useRef(null);
 
   const onInputChange = (e) => {
     setIsSelected(true);
@@ -43,7 +43,11 @@ export default function App() {
       .then((data) => {
         setUploadSuccessful(!uploadSuccessful);
         setShowSpinner(false);
+
+        // Очистка полей
         setFileAuthor("");
+        setSelectedFile(null);
+        setIsSelected(false);
       })
       .catch((error) => {
         console.error("Error uploading file:", error);
@@ -52,8 +56,11 @@ export default function App() {
   };
 
   const triggerFileInput = () => {
-    // Triggers the hidden file input click
     fileInputRef.current.click();
+  };
+
+  const openJupyterLab = () => {
+    window.open("http://localhost:8888/lab", "_blank");
   };
 
   useEffect(() => {
@@ -99,36 +106,36 @@ export default function App() {
                   type="file"
                   ref={fileInputRef}
                   onChange={onInputChange}
-                  display="none" // Hides the input field
+                  display="none"
                 />
                 <Button
                   size="lg"
                   colorScheme="green"
-                  onClick={triggerFileInput} // Calls the function to trigger file input click
+                  onClick={triggerFileInput}
                 >
                   Выберите файл
                 </Button>
                 <Button
                   size="lg"
                   colorScheme="green"
-                  isDisabled={!isSelected}
+                  isDisabled={!isSelected || !fileAuthor}
                   onClick={onFileUpload}
                 >
                   Загрузить файл
+                </Button>
+                <Button
+                  size="lg"
+                  colorScheme="green"
+                  onClick={openJupyterLab}
+                  style={{ fontSize: "0.8rem" }}
+                >
+                  Обработка данных
                 </Button>
               </HStack>
               {selectedFile && (
                 <Text color="green.300">Выбранный файл: {selectedFile.name}</Text>
               )}
               {showSpinner && <Spinner size="lg" color="green.300" />}
-              <Button
-                  size="lg"
-                  colorScheme="green"
-                  onClick={() => window.location.href = ""}
-                  style={{ fontSize: '0.8rem' }} // Уменьшаем размер текста
-                >
-                  Перейти в JupyterNotebook для работы с файлами. Пароль для входа - password
-                </Button>
             </VStack>
           </VStack>
         </Center>

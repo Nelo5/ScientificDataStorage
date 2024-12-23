@@ -1,5 +1,5 @@
+import os
 import shutil
-import boto3
 import psycopg2
 import uvicorn
 from typing import List
@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from io import BytesIO
 from urllib.parse import quote
-import os
-
+import pathlib
+from pathlib import Path
 
 S3_BUCKET_NAME = "scientificdata"
 
@@ -19,7 +19,6 @@ class FileModel(BaseModel):
     id: int
     file_name: str
     file_author: str
-    is_deleted: bool
 
 app = FastAPI()
 
@@ -31,14 +30,53 @@ app.add_middleware(
     allow_headers=['*']
 )
 
+def initialize_database():
+    """Initialize the database with required tables."""
+    conn = psycopg2.connect(
+        database="exampledb",
+        user="docker",
+        password="docker",
+        host="database"
+    )
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS files (
+            id SERIAL PRIMARY KEY,
+            file_name TEXT NOT NULL,
+            file_author TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def initialize_s3_bucket():
+    client = Minio(
+        "minio:9000",
+        access_key="ROOTNAME",
+        secret_key="PASSWORD",
+        secure=False
+    )
+    found = client.bucket_exists(S3_BUCKET_NAME)
+    if not found:
+        client.make_bucket(S3_BUCKET_NAME)
+    else:
+        print(f"Bucket '{S3_BUCKET_NAME}' already exists.")
+
+@app.on_event("startup")
+async def startup_event():
+    print("Initializing database and S3 bucket...")
+    initialize_database()
+    initialize_s3_bucket()
+
 @app.get('/status')
 async def check_status():
-    return "Hello word"
+    return "Hello world"
 
-@app.get("/files", response_model = List[FileModel])
+@app.get("/files", response_model=List[FileModel])
 async def get_all_files():
     conn = psycopg2.connect(
-        database="exampledb", 
+        database="exampledb",
         user="docker",
         password="docker",
         host="database"
@@ -54,7 +92,6 @@ async def get_all_files():
                 id=row[0],
                 file_name=row[1],
                 file_author=row[2],
-                is_deleted=row[3]
             )
         )
     cur.close()
@@ -63,64 +100,45 @@ async def get_all_files():
 
 @app.post("/files", status_code=201)
 async def add_file(file: UploadFile, author: str = Form(...)):
-
-
-
-    client = Minio("minio:9000",
-    access_key="hz3VAM0BzGf9lBBZ2pCl",
-    secret_key="xXD7t7iLowhrCO0GjDEjw2jnI0wM6KMqUi5eDXgT",
-    secure=False)
+    client = Minio(
+        "minio:9000",
+        access_key="ROOTNAME",
+        secret_key="PASSWORD",
+        secure=False
+    )
 
     client.put_object(
-            S3_BUCKET_NAME,
-            file.filename,
-            file.file,
-            length=-1,
-            part_size=10*1024*1024)
-    
-    file_path = os.path.join("jupyter","data", file.filename)
-    client.fget_object(S3_BUCKET_NAME, file.filename, file_path)
+        S3_BUCKET_NAME,
+        file.filename,
+        file.file,
+        length=-1,
+        part_size=10*1024*1024
+    )
+
+    client.fget_object(S3_BUCKET_NAME, file.filename, f"/files/{file.filename}")
 
     conn = psycopg2.connect(
-        database="exampledb", 
+        database="exampledb",
         user="docker",
         password="docker",
         host="database"
     )
     cur = conn.cursor()
-    cur.execute(f"INSERT INTO files (file_name, file_author) VALUES ('{file.filename}', '{author}')")
+    cur.execute("INSERT INTO files (file_name, file_author) VALUES (%s, %s)", (file.filename, author))
     conn.commit()
     cur.close()
     conn.close()
 
-# @app.get("/files/{file_name}")
-# async def download_file(file_name: str):
-#     """Downloads a file from Minio."""
-#     client = Minio("minio:9000",
-#                    access_key="hz3VAM0BzGf9lBBZ2pCl",
-#                    secret_key="xXD7t7iLowhrCO0GjDEjw2jnI0wM6KMqUi5eDXgT",
-#                    secure=False)
-
-#     try:
-#         file_data = client.get_object("scientificdata", file_name)
-#         return Response(content=file_data.read(), media_type=file_data.content_type, headers={"Content-Disposition": f"attachment; filename={file_name}"})  # Set Content-Disposition for download
-#     except Exception as e:
-#         raise HTTPException(status_code=404, detail=f"File '{file_name}' not found: {e}")
-
-
-# Новый эндпоинт для скачивания файла
 @app.get("/files/download/{file_name}")
 async def download_file(file_name: str):
-    # Подключение к MinIO
     client = Minio(
         "minio:9000",
-        access_key="hz3VAM0BzGf9lBBZ2pCl",
-        secret_key="xXD7t7iLowhrCO0GjDEjw2jnI0wM6KMqUi5eDXgT",
+        access_key="ROOTNAME",
+        secret_key="PASSWORD",
         secure=False
     )
 
     try:
-        # Получение объекта из MinIO
         response = client.get_object(S3_BUCKET_NAME, file_name)
         file_data = BytesIO(response.read())
         response.close()
@@ -130,10 +148,11 @@ async def download_file(file_name: str):
     
     encoded_file_name = quote(file_name)
 
-    # Возврат файла клиенту
     return StreamingResponse(
         file_data,
         media_type="application/octet-stream",
         headers={"Content-Disposition": f"attachment; filename={encoded_file_name}"}
-)
+    )
 
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
